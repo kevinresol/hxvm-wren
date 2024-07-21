@@ -1,0 +1,5 @@
+tests.hxml
+--cpp bin/cpp
+--library linc_wren
+--class-path src
+--no-output

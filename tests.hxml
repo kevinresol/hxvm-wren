@@ -1,0 +1,10 @@
+-cp tests
+-main RunTests
+-dce full
+-lib tink_unittest
+# -lib deep_equal
+# -lib hxcpp-debug-server
+# --debug
+
+-D analyzer-optimize
+-D no-deprecation-warnings

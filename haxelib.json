@@ -1,0 +1,15 @@
+{
+	"name": "hxvm-wren",
+	"license": "MIT",
+	"tags": [
+	  "vm",
+	  "wren"
+	],
+	"classPath": "src",
+	"contributors": [
+	  "kevinresol"
+	],
+	"releasenote": "initial release",
+	"version": "0.0.0",
+	"dependencies": {}
+  }
