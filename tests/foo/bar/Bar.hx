@@ -1,11 +1,11 @@
-package foo;
+package foo.bar;
 
 @:wren.foreign
-class Foo {
+class Bar {
 	public function new() {}
 	
 	@:wren.foreign
 	public function test() {
-		return 'Foo#test';
+		return 'Bar#test';
 	}
 }

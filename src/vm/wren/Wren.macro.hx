@@ -14,6 +14,40 @@ final ALLOCATE_FIELD = '__wren_allocate';
 final FINALIZE_FIELD = '__wren_finalize';
 
 class Wren {
+	/**
+		A macro function that will generate the necessary Wren foreign class bindings,
+		and create a WrenVM instance with them.
+		
+		Example:
+		```haxe
+		final wren = vm.wren.Wren.make({
+			writeFn: (_, v) -> Sys.print(v),
+			errorFn: (_, type, module, line, message) -> Sys.println('[$module:$line] $message'),
+			loadModuleFn: (_, name) -> '...',
+			foreignClasses: [Point, foo.Foo],
+		});
+		```
+		
+		and to define a foreign class in Haxe:
+		```haxe
+		@:wren.foreign('main', 'Point') // optional params: Wren module and class name
+		class Point {
+			public function new(m:Int) {
+				// ...
+			}
+			
+			@:wren.foreign
+			public function instanceMethod(i:Int, f:Float, s:String, b:Bool) {
+				// ...
+			}
+			
+			@:wren.foreign
+			public static function staticMethod() {
+				// ...
+			}
+		}
+		```
+	**/
 	public static macro function make(options:Expr):Expr {
 		final foreignClasses = extractForeignClasses(options);
 		
@@ -46,8 +80,16 @@ class Wren {
 						for(e in foreignClassesExprs) {
 							final type = Context.getType(e.toString());
 							final meta = type.getMeta()[0];
+							final tp = switch type.toComplex() {
+								case TPath(v): v;
+								case _: throw 'Expected TypePath';
+							}
 							
 							switch meta.extract(':wren.foreign') {
+								case [{params: []}]:
+									ret.push({module: tp.pack.join('/'), className: tp.sub ?? tp.name, type: type});
+								case [{params: [macro $v{(module:String)}]}]:
+									ret.push({module: module, className: tp.sub ?? tp.name, type: type});
 								case [{params: [macro $v{(module:String)}, macro $v{(className:String)}]}]:
 									ret.push({module: module, className: className, type: type});
 								case v:
