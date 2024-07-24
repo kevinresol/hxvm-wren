@@ -19,8 +19,8 @@ class Wren {
 		
 		defineBindingClasses(foreignClasses);
 		
-		final e = macro {
-			final options:vm.wren.Wren.WrenOptions = ${Anon.extractFields(options, ['writeFn', 'errorFn', 'loadModuleFn'])};
+		return macro {
+			final options:vm.wren.Wren.WrenOptions = ${Anon.pick(options, ['writeFn', 'errorFn', 'loadModuleFn'])};
 			wren.WrenVM.make({
 				writeFn: options.writeFn,
 				errorFn: options.errorFn,
@@ -29,7 +29,6 @@ class Wren {
 				bindForeignClassFn: ${makeBindForeignClassFn(foreignClasses)}
 			});
 		}
-		return e.log();
 	}
 	
 	/**
@@ -75,28 +74,44 @@ class Wren {
 				case TPath(v): v;
 				case _: throw 'Expected TypePath';
 			}
+			final ctor = switch type {
+				case TInst(base, _): base.get().constructor.get();
+				case _: throw 'Expected TInst';
+			}
 			final pos = type.getPosition().sure();
 			final meta = type.getMeta()[0];
 			final id = type.getID();
 			
 			if(meta.has(':wren.foreign')) {
-				// TODO: only add these if class has constructor
-				final fields:Array<Field> = [
-					{
+				final fields:Array<Field> = [];
+				if(ctor != null) {
+					fields.push({
 						pos: pos,
 						name: ALLOCATE_FIELD,
 						access: [APublic, AStatic],
 						kind: FFun({
 							args: [{name: '__vm', type: macro:cpp.Star<wren.native.WrenVM>}],
 							ret: macro:Void,
-							expr: macro {
-								final __vm:wren.WrenVM = __vm;
-								final inst = new $tp();
-								__vm.setSlotNewForeignDynamic(0, 0, inst);
+							expr: switch ctor.type.reduce() {
+								case TFun(args, _):
+									final exprs = [macro final __vm:wren.WrenVM = __vm];
+									
+									// read function args from vm slots
+									for(i => arg in args) {
+										exprs.push(makeReadArgExpr(macro __vm, i, arg.name, arg.t, pos));
+									}
+									
+									// create the instance and set it to the vm slot
+									exprs.push(macro final inst = new $tp($a{args.map(a -> macro $i{a.name})}));
+									exprs.push(macro __vm.setSlotNewForeignDynamic(0, 0, inst));
+									
+									macro $b{exprs}
+								case _:
+									throw 'Expected TFun';
 							}
 						}),
-					},
-					{
+					});
+					fields.push({
 						pos: pos,
 						name: FINALIZE_FIELD,
 						access: [APublic, AStatic],
@@ -107,8 +122,8 @@ class Wren {
 								wren.native.Wren.unroot(ptr);
 							},
 						}),
-					}
-				];
+					});	
+				}
 				
 				for(field in type.getFields().sure()) {
 					switch field.type.reduce() {
@@ -122,7 +137,7 @@ class Wren {
 								field.pos
 							));
 						case v:
-							trace(v);
+							trace(field.name, v);
 					}
 				}
 				
@@ -138,7 +153,7 @@ class Wren {
 								field.pos
 							));
 						case v:
-							trace(v);
+							trace(field.name, v);
 					}
 				}
 				
@@ -174,13 +189,17 @@ class Wren {
 				ret: macro:Void,
 				expr: {
 					final exprs = [macro final __vm:wren.WrenVM = __vm].concat(init);
+					
+					// read function args from vm slots
 					for(i => arg in args) {
 						exprs.push(makeReadArgExpr(macro __vm, i, arg.name, arg.t, pos));
 					}
 					
+					// call the function and return the result to Wren
 					switch ret.getID() {
-						case 'Void':
+						case 'Void': // if return type is Void in Haxe
 							exprs.push(macro $target.$name($a{args.map(a -> macro $i{a.name})}));
+							// use null as return value in Wren 
 							exprs.push(macro __vm.setSlotNull(0));
 						case _:
 							exprs.push(macro final __ret = $target.$name($a{args.map(a -> macro $i{a.name})}));
@@ -305,7 +324,7 @@ class Wren {
 }
 
 class Anon {
-	public static function extractFields(obj:Expr, fields:Array<String>): Expr {
+	public static function pick(obj:Expr, fields:Array<String>): Expr {
 		return switch obj {
 			case {expr: EObjectDecl(ofields)}:
 				EObjectDecl(ofields.filter(f -> fields.indexOf(f.field) != -1)).at(obj.pos);

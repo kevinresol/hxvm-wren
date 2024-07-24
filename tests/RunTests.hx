@@ -55,14 +55,14 @@ class Main {
 	}
 		
 	static testPointInstance() {
-		var point = Point.new()
+		var point = Point.new(42)
 		var result = point.instanceMethod(1, 2.0, "foo", true)
 		System.print("result in vm: %(result)")
 	}
 }
 	
 foreign class Point {
-	construct new() {}
+	construct new(m) {}
 	foreign instanceMethod(i, f, s, b)
 	foreign static staticMethod()
 }
