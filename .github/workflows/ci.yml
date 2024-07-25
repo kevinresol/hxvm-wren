@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+    branches: [ master ]
+
+env:
+  CI: "true"
+
+jobs:
+  test:
+
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.haxe-version == 'nightly' }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          # - windows-latest
+        haxe-version:
+          - 4.3.4
+          - stable
+          - nightly
+        target:
+          - cpp -lib linc_wren -D NO_PRECOMPILED_HEADERS
+
+    steps:
+    - name: Check Node.js Version
+      run: node -v
+      
+    - name: Check out repo
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Get yarn cache directory path
+      id: yarn-cache-dir-path
+      run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
+
+    - name: Cache Yarn
+      uses: actions/cache@v3
+      with:
+        path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+        key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-yarn-
+
+    - name: Cache Haxe
+      uses: actions/cache@v3
+      with:
+        path: ${{ startsWith(runner.os, 'windows') && '%AppData%' || '~/haxe' }}
+        key: ${{ runner.os }}-haxe
+
+    - name: Install Lix
+      uses: lix-pm/setup-lix@master
+
+    - name: Install Haxe
+      run: lix install haxe ${{ matrix.haxe-version }}
+
+    - name: Install Haxe Libraries
+      run: lix download
+      
+    # remove when new hxcpp released. see: https://github.com/HaxeFoundation/hxcpp/pull/1107
+    - name: Debug
+      run: pushd ~/haxe/haxe_libraries/hxcpp/4.3.0/github/01cfee282a9a783e10c5a7774a3baaf547e6b0a7/tools/hxcpp && haxe compile.hxml && popd
+
+    - name: Run Test
+      run: lix run travix ${{ matrix.target }}
